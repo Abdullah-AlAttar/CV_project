@@ -1,13 +1,15 @@
 
 import cv2
 import numpy as np
+
+
 def pickle_keypoints(keypoints, descriptors):
     i = 0
     temp_array = []
     for point in keypoints:
         temp = (point.pt, point.size, point.angle, point.response, point.octave,
                 point.class_id, descriptors[i])
-        ++i
+        i += 1
         temp_array.append(temp)
     return temp_array
 
