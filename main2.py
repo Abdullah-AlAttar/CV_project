@@ -44,11 +44,11 @@ while True:
 
     kp, dest = sift.detectAndCompute(roi_gray, None)
     # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    for keypoint, descriptor in zip(kp, dest):
-        x, y = keypoint.pt
-        if x_start <= x <= x_end and y_start <= y <= y_end:
-            keypoints.append(keypoint)
-            descriptors.append(descriptor)
+    # for keypoint, descriptor in zip(kp, dest):
+    #     x, y = keypoint.pt
+    #     if x_start <= x <= x_end and y_start <= y <= y_end:
+    #         keypoints.append(keypoint)
+    #         descriptors.append(descriptor)
 
     # print(x_start, x_end, y_start, y_end)
 
@@ -73,15 +73,16 @@ while True:
         # cv2.imwrite('hand.jpg', roi)
         if not saved:
             openHand = HandFeature(dest, kp)
+            cv2.imwrite('open.png', roi)
 
             saved = True
             text = text[::-1]
         else:
             closeHand = HandFeature(dest, kp)
+            cv2.imwrite('close.png', roi)
             break
-    if c == ord('c'):
-        cv2.imwrite('roisift.png', roi)
-# print(openHand.dest, openHand.kp)
+    # if c == ord('c'):
+    # print(openHand.dest, openHand.kp)
 
 # print([i.pt for i in openHand.kp[:5]])
 print(openHand.dest[:5])
