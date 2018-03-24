@@ -50,8 +50,10 @@ while True:
     # print(roi.shape)
     # keypoints = sift.detect(roi, None)
     roigray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-
-    kp, dest = sift.detectAndCompute(frame, None)
+    # blur = cv2.GaussianBlur(gray_frame, (5, 5), 0)
+    # ret, thresh = cv2.threshold(blur, 100, 255, cv2.THRESH_BINARY)
+    # kp, dest = sift.detectAndCompute(roi, None)
+    kp, dest = sift.detectAndCompute(gray_frame, None)
     # frame = cv2.drawKeypoints(
     #     frame, kp, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS, outImage=None)
     # keypoints = orb.detect(thresh, None)
@@ -85,7 +87,7 @@ while True:
         # store all the good matches as per Lowe's ratio test.
         matches = [match[0] for match in matches if len(
             match) == 2 and match[0].distance < match[1].distance * 0.7]
-        print(len(matches))
+        # print(len(matches))
         good = []
 
         if len(matches) > 1:
@@ -94,9 +96,10 @@ while True:
             dst_pts = np.float32(
                 [kp[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
 
+            # print(src_pts[:5],dst_pts[:5])
+            # print(np.average(src_pts, axis=0).flatten())
             M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
             matchesMask = mask.ravel().tolist()
-
             mask = mask.ravel() != 0
             h, w = roigray.shape
 
@@ -108,6 +111,8 @@ while True:
 
             img2 = cv2.polylines(
                 frame, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+            c1, c2 = np.average(dst_pts, axis=0).flatten()
+            cv2.circle(img2, (c1, c2), 2, (255, 255, 255), 2)
             cv2.imshow('Frame2', img2)
             # cv2.imshow('abc', roi)
             # cv2.waitKey(0)

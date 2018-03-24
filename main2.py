@@ -37,7 +37,12 @@ while True:
         roi_offset, frame.shape[1], frame.shape[0] - roi_offset, frame.shape[0]
 
     roi = frame[y_start:y_end, x_start:x_end, :]
-    kp, dest = sift.detectAndCompute(roi, None)
+
+    roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    # blur = cv2.GaussianBlur(roi_gray, (5, 5), 0)
+    # ret, thresh = cv2.threshold(blur, 95, 255, cv2.THRESH_BINARY)
+
+    kp, dest = sift.detectAndCompute(roi_gray, None)
     # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     for keypoint, descriptor in zip(kp, dest):
         x, y = keypoint.pt
@@ -48,7 +53,7 @@ while True:
     # print(x_start, x_end, y_start, y_end)
 
     roi = cv2.drawKeypoints(
-        roi, kp, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS, outImage=None)
+        roi_gray, kp, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS, outImage=None)
     # keypoints = orb.detect(thresh, None)
     # keypoints, descriptors = orb.compute(thresh, keypoints)
     # cv2.drawKeypoints(roi, kp, roi, color=(186, 85, 211))
@@ -59,7 +64,7 @@ while True:
 
     cv2.imshow('Frame', frame)
     cv2.imshow('roi', roi)
-
+    # cv2.imshow('thres', thresh)
     # cv2.imshow('mask1', mask1)
     c = cv2.waitKey(1)
     if c == 27:
