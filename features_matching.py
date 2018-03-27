@@ -6,9 +6,11 @@ import numpy as np
 
 class BruteForceMatcher:
 
-    def __init__(self):
-
-        self.matcher = cv2.BFMatcher()
+    def __init__(self, features_type='sift'):
+        if features_type == 'sift':
+            self.matcher = cv2.BFMatcher()
+        elif features_type == 'orb':
+            self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
     def match(self, des1, des2, threshold):
 
@@ -23,8 +25,8 @@ class BruteForceMatcher:
 
         # matches = [match for match in matches if match.distance < threshold]
         matches = [match for match in matches]
-        matches = sorted(matches, key = lambda x:x.distance)
-        
+        matches = sorted(matches, key=lambda x: x.distance)
+
         return s, matches[:20]
 
     def get_rectangle_around_features(self, matches, kp_query, kp_train, w, h):
@@ -43,9 +45,11 @@ class BruteForceMatcher:
             [[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
 
         dst = cv2.perspectiveTransform(pts, M)
+        # print(dst)
         mnx = dst[:, :, 0].min()
         mxx = dst[:, :, 0].max()
         mny = dst[:, :, 1].min()
         mxy = dst[:, :, 1].max()
 
-        return (mnx, mny, mxx, mxy)
+        c1, c2 = np.average(dst_pts, axis=0).flatten()
+        return (mnx, mny, mxx, mxy,c1,c2)

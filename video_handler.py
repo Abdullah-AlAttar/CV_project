@@ -6,7 +6,7 @@ import pickle
 from save_features import pickle_keypoints, unpickle_keypoints
 from features_matching import BruteForceMatcher
 
-sift = cv2.xfeatures2d.SIFT_create()
+# sift = cv2.xfeatures2d.SIFT_create()
 
 
 class ROISelector(object):
@@ -52,17 +52,17 @@ class ROISelector(object):
 
 
 class HandsCapture(object):
-    def __init__(self, capId, scaling_factor, win_name):
+    def __init__(self, capId, feature_detector='sift', win_name='default'):
         self.cap = cv2.VideoCapture(capId)
-        # self.pose_tracker = PoseEstimator()
         self.win_name = win_name
-        self.scaling_factor = scaling_factor
-
         ret, frame = self.cap.read()
         self.rect = None
         # print(ret,frame)
-        # self.frame = cv2.resize(
-        #     frame, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
+        if feature_detector == 'sift':
+            self.feature_detector = cv2.xfeatures2d.SIFT_create()
+        elif feature_detector == 'orb':
+            self.feature_detector = cv2.ORB_create()
+
         self.frame = frame
 
         self.roi_selector = ROISelector(win_name, self.frame, self.set_rect)
@@ -82,22 +82,12 @@ class HandsCapture(object):
                 self.frame = frame.copy()
 
             img = self.frame.copy()
-            if False:
-                tracked = self.pose_tracker.track_target(self.frame)
-                # tracked = []
-                for item in tracked:
-                    cv2.polylines(img, [np.int32(item.quad)],
-                                  True, (255, 255, 255), 2)
-                    for (x, y) in np.int32(item.points_cur):
-                        cv2.circle(img, (x, y), 2, (255, 255, 255))
-
-            # self.roi_selector.draw_rect(img, self.rect)
 
             if self.rect:
                 x_start, y_start, x_end, y_end = self.rect
                 roi = img[y_start:y_end, x_start:x_end]
-
-                kp, desc = sift.detectAndCompute(roi, None)
+                roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                kp, desc = self.feature_detector.detectAndCompute(roi, None)
 
                 roi = cv2.drawKeypoints(
                     roi, kp, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS, outImage=None)
@@ -129,16 +119,20 @@ class HandsCapture(object):
 
 
 class HandsMatcher(object):
-    def __init__(self, capId, scaling_factor, win_name):
+    def __init__(self, capId, feature_detector='sift', win_name='default'):
         self.cap = cv2.VideoCapture(capId)
         self.win_name = win_name
-        self.scaling_factor = scaling_factor
-        self.matcher = BruteForceMatcher()
+        self.matcher = BruteForceMatcher(feature_detector)
         ret, frame = self.cap.read()
         self.rect = None
         # self.frame = cv2.resize(
         #     frame, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
         self.frame = frame
+
+        if feature_detector == 'sift':
+            self.feature_detector = cv2.xfeatures2d.SIFT_create()
+        elif feature_detector == 'orb':
+            self.feature_detector = cv2.ORB_create()
 
         data = pickle.load(open("oh.p", "rb"))
         kp_open, desc_open, rect = unpickle_keypoints(data)
@@ -158,13 +152,12 @@ class HandsMatcher(object):
         while True:
             if not paused or self.frame is None:
                 ret, frame = self.cap.read()
-                frame = cv2.resize(frame, None, fx=self.scaling_factor,
-                                   fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
 
                 self.frame = frame.copy()
-
             img = self.frame.copy()
-            kp, desc = sift.detectAndCompute(img, None)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            kp, desc = self.feature_detector.detectAndCompute(img, None)
 
             sum_open, matches_open = self.matcher.match(
                 self.desc_open, desc, 250)
@@ -172,29 +165,45 @@ class HandsMatcher(object):
             sum_close, matches_close = self.matcher.match(
                 self.desc_close, desc, 250)
 
-            # sum_open = 2
-            # sum_close = 1
-            # print(len(matches_open), len(matches_close))
             matches = matches_open if sum_open < sum_close else matches_close
             winner = 'open' if sum_open < sum_close else 'close'
             kp_query = self.kp_open if sum_open < sum_close else self.kp_close
 
-            matches = [match for match in matches]
+            matches = [match for match in matches if match.distance < 300]
             # print(sum_open, sum_close, len(matches))
-
+            # print(len(matches))
             if len(matches) > 4:
                 w = abs(self.rect[0] - self.rect[2])
                 h = abs(self.rect[1] - self.rect[3])
 
-                (mnx, mny, mxx, mxy) = self.matcher.get_rectangle_around_features(
+                (mnx, mny, mxx, mxy, c1, c2) = self.matcher.get_rectangle_around_features(
                     matches, kp_query, kp, w, h)
                 # print(mnx, mny, mxx, mxy)
-                cv2.rectangle(
-                    img, (mnx, mny), (mxx, mxy), (0, 255, 0), 4)
-                if mnx < 0 or mny < 0 or mxx < 0 or mxy < 0:
-                    continue
-                cv2.putText(img, winner, (int(mnx - 5), int(mny - 5)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0, 0, 0))
+
+                # mnx = np.clip(mnx, 0, frame.shape[0])
+                # mxx = np.clip(mxx, 0, frame.shape[0])
+
+                # mny = np.clip(mny, 0, frame.shape[1])
+                # mxy = np.clip(mxy, 0, frame.shape[1])
+                check = False
+                if mnx < 0 or mnx > frame.shape[0]:
+                    check = True
+                if mxx < 0 or mxx > frame.shape[0]:
+                    check = True
+                if mny < 0 or mny > frame.shape[0]:
+                    check = True
+                if mxy < 0 or mxy > frame.shape[0]:
+                    check = True
+
+                # print(check)
+                if not check:
+
+                    cv2.circle(img, (c1, c2), 2, (255, 0, 255), 2)
+
+                    cv2.rectangle(
+                        img, (mnx, mny), (mxx, mxy), (0, 255, 0), 4)
+                    cv2.putText(img, winner, (int(mnx - 5), int(mny - 5)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0, 0, 0))
                 # self.roi_selector.draw_rect(img, self.rect)
 
             cv2.imshow(self.win_name, img)

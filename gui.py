@@ -42,11 +42,11 @@ class GUI:
         self.menubar.add_cascade(label="Operations", menu=self.operations_menu)
 
     def on_capture_hands(self):
-        self.hc = HandsCapture(0, 1.0, 'Hands Capture')
+        self.hc = HandsCapture(0, 'orb', 'Hands Capture')
         self.hc.start()
 
     def on_match_hands(self):
-        self.vh = HandsMatcher(0, 1.0, 'Hands Matcher')
+        self.vh = HandsMatcher(0, 'orb', 'Hands Matcher')
         self.vh.start()
 
 
