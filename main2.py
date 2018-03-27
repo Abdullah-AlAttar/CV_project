@@ -7,7 +7,6 @@ cap = cv2.VideoCapture(0)
 roi_offset = 150
 # Create the background subtractor object
 
-
 sift = cv2.xfeatures2d.SIFT_create()
 # ret, frame = cap.read()
 
@@ -60,8 +59,6 @@ while True:
             closeHand = HandFeature(dest, kp)
             cv2.imwrite('close.png', roi)
             break
-
-
 
 
 pickle.dump(pickle_keypoints(openHand.kp, openHand.dest),

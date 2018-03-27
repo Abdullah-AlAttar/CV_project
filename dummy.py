@@ -1,67 +1,74 @@
-# from save_features import pickle_keypoints, unpickle_keypoints
-# import pickle
+import tkinter as tk
+from tkinter import ttk
+from tkinter import filedialog
+from PIL import Image
+from PIL import ImageTk
 
-# keypoints_database = pickle.load(open("openHand.p", "rb"))
-# kp1, desc1 = unpickle_keypoints(keypoints_database)
-# print(kp1, desc1)
-
-
-import numpy as np
 import cv2
-from matplotlib import pyplot as plt
-
-MIN_MATCH_COUNT = 10
-
-img1 = cv2.imread('box.png', 0)          # queryImage
-img2 = cv2.imread('box_in_scene.png', 0)  # trainImage
-
-# Initiate SIFT detector
-sift = cv2.xfeatures2d.SIFT_create()
-
-# find the keypoints and descriptors with SIFT
-kp1, des1 = sift.detectAndCompute(img1, None)
-kp2, des2 = sift.detectAndCompute(img2, None)
-
-FLANN_INDEX_KDTREE = 0
-index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-search_params = dict(checks=50)
-
-flann = cv2.FlannBasedMatcher(index_params, search_params)
-
-matches = flann.knnMatch(des1, des2, k=2)
-
-# store all the good matches as per Lowe's ratio test.
-good = []
-for m, n in matches:
-    if m.distance < 0.7 * n.distance:
-        good.append(m)
-if len(good) > MIN_MATCH_COUNT:
-    src_pts = np.float32(
-        [kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    dst_pts = np.float32(
-        [kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-    print(src_pts, dst_pts, good)
-    M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-    matchesMask = mask.ravel().tolist()
-
-    h, w = img1.shape
-    pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1],
-                      [w - 1, 0]]).reshape(-1, 1, 2)
-    print(M, mask)
-    dst = cv2.perspectiveTransform(pts, M)
-
-    img2 = cv2.polylines(img2, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
-
-else:
-    # print "Not enough matches are found - %d/%d" % (len(good), MIN_MATCH_COUNT)
-    matchesMask = None
 
 
-draw_params = dict(matchColor=(0, 255, 0),  # draw matches in green color
-                   singlePointColor=None,
-                   matchesMask=matchesMask,  # draw only inliers
-                   flags=2)
+def read_image(path, BGR_to_RGB=False, gray_scale=False):
 
-img3 = cv2.drawMatches(img1, kp1, img2, kp2, good, None, **draw_params)
+    img = cv2.imread(path, 0) if gray_scale else cv2.imread(path)
 
-plt.imshow(img3, 'gray'), plt.show()
+    if BGR_to_RGB:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
+
+
+def cvimg_to_PIL(img):
+    pil_img = Image.fromarray(img)
+
+    pil_img = ImageTk.PhotoImage(pil_img)
+    return pil_img
+
+
+class GUI:
+
+    def __init__(self, master):
+        self.master = master
+        master.title("Computer Vision")
+        master.geometry("1600x900")
+
+        # layout
+
+    def popupmsg(self, msg):
+        popup = tk.Tk()
+        popup.wm_title("")
+        input = ttk.Entry(popup)
+
+        def disable_event():
+            pass
+        popup.protocol("WM_DELETE_WINDOW", disable_event)
+
+        def on_press():
+            self.D_val = int(input.get())
+            popup.destroy()
+            self.master.quit()
+
+        label = ttk.Label(popup, text=msg)
+        label.pack(side="top", fill="x", padx=12)
+        b = ttk.Button(popup, text="Submit", command=on_press)
+        input.pack()
+        b.pack(side='bottom')
+        popup.mainloop()
+
+    def init_layout(self):
+
+        self.panel1.grid(row=3, column=0, padx=8, pady=8, ipadx=8, ipady=8)
+        self.panel2.grid(row=3, column=1, padx=8, pady=8, ipadx=8, ipady=8)
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+
+    gui = GUI(root)
+
+    root.mainloop()
+
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, img = cap.read()
+        img = cvimg_to_PIL(img)
+        gui.panel2_img = cvimg_to_PIL(res)
+        gui.panel2.configure(image=self.panel2_img)

@@ -1,9 +1,12 @@
 
-import cv2
-import numpy as np
-from save_features import unpickle_keypoints
 import pickle
 from enum import Enum
+
+import numpy as np
+
+import cv2
+from save_features import unpickle_keypoints
+
 scaling_factor = 0.5
 roi_offset = 150
 history = 100
@@ -18,6 +21,7 @@ class State(Enum):
 
 state = State.MATCHING
 
+
 sift = cv2.xfeatures2d.SIFT_create()
 
 
@@ -27,8 +31,10 @@ kpopen, descopen = unpickle_keypoints(keypoints_database)
 keypoints_database = pickle.load(open("closeHand.p", "rb"))
 kpclosed, descclosed = unpickle_keypoints(keypoints_database)
 
+
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FPS, 20)
+
 
 ret, frame = cap.read()
 fourcc = cv2.VideoWriter_fourcc(*'DIVX')
@@ -40,11 +46,12 @@ cnt = 0
 
 
 FLANN_INDEX_KDTREE = 0
+
 index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+
 search_params = dict(checks=50)
 
 flann = cv2.FlannBasedMatcher(index_params, search_params)
-
 # create BFMatcher object
 bf = cv2.BFMatcher()
 
