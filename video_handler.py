@@ -1,10 +1,9 @@
-
-
 import cv2
 import numpy as np
 import pickle
 from save_features import pickle_keypoints, unpickle_keypoints
 from features_matching import BruteForceMatcher
+from collections import deque
 
 # sift = cv2.xfeatures2d.SIFT_create()
 
@@ -15,6 +14,8 @@ class ROISelector(object):
         self.selected_rect = None
         self.drag_start = None
         self.tracking_state = 0
+        self.is_drawing = False
+        self.moving = False
         event_params = {"frame": init_frame}
         cv2.namedWindow(win_name)
         cv2.setMouseCallback(win_name, self.mouse_event, event_params)
@@ -29,6 +30,8 @@ class ROISelector(object):
 
         if self.drag_start:
             if event == cv2.EVENT_MOUSEMOVE:
+
+                self.is_drawing = True
                 h, w = param["frame"].shape[:2]
                 xo, yo = self.drag_start
                 x0, y0 = np.maximum(0, np.minimum([xo, yo], [x, y]))
@@ -40,6 +43,7 @@ class ROISelector(object):
 
             elif event == cv2.EVENT_LBUTTONUP:
                 self.drag_start = None
+                self.is_drawing = False
                 if self.selected_rect is not None:
                     self.callback_func(self.selected_rect)
                     self.selected_rect = None
@@ -69,6 +73,11 @@ class HandsCapture(object):
 
     def set_rect(self, rect):
         self.rect = rect
+        self.roi_selector.moving = True
+
+    def draw_rect_while_selecting(self, img, rect):
+        x_start, y_start, x_end, y_end = rect
+        cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 255, 0), 3)
 
     def start(self):
         paused = False
@@ -82,16 +91,29 @@ class HandsCapture(object):
                 self.frame = frame.copy()
 
             img = self.frame.copy()
+            if self.roi_selector.is_drawing and self.roi_selector.selected_rect:
+                x_start, y_start, x_end, y_end = self.roi_selector.selected_rect
+                cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 100, 255), 3)
 
             if self.rect:
                 x_start, y_start, x_end, y_end = self.rect
                 roi = img[y_start:y_end, x_start:x_end]
-                roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                
+            if self.roi_selector.moving:
+                
+
+                # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                # roi = cv2.GaussianBlur(roi, (5, 5), 0)
+                # ret, roi = cv2.threshold(roi, 150, 255, cv2.THRESH_BINARY_INV)
+                # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                 kp, desc = self.feature_detector.detectAndCompute(roi, None)
-
                 roi = cv2.drawKeypoints(
-                    roi, kp, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS, outImage=None)
+                    roi,
+                    kp,
+                    flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
+                    outImage=None)
 
+                # cv2.imshow('blur', blur)
                 img[y_start:y_end, x_start:x_end] = roi
                 # cv2.imshow('roi', roi)
                 self.roi_selector.draw_rect(img, self.rect)
@@ -104,12 +126,14 @@ class HandsCapture(object):
             if ch == ord('s'):
                 print(self.rect, len(kp), len(desc))
                 if saved:
-                    pickle.dump(pickle_keypoints(kp, desc, self.rect),
-                                open("oh.p", "wb"))
+                    pickle.dump(
+                        pickle_keypoints(kp, desc, self.rect),
+                        open("oh.p", "wb"))
                     saved = False
                 else:
-                    pickle.dump(pickle_keypoints(kp, desc, self.rect),
-                                open("ch.p", "wb"))
+                    pickle.dump(
+                        pickle_keypoints(kp, desc, self.rect),
+                        open("ch.p", "wb"))
                     break
 
             if ch == 27:
@@ -149,21 +173,27 @@ class HandsMatcher(object):
 
     def start(self):
         paused = False
+        centers = deque(maxlen=5)
+
         while True:
             if not paused or self.frame is None:
                 ret, frame = self.cap.read()
 
                 self.frame = frame.copy()
             img = self.frame.copy()
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
+            # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            # print(frame)
             kp, desc = self.feature_detector.detectAndCompute(img, None)
 
+            # img = cv2.drawKeypoints(
+            # img, kp[20:], flags=cv2.DRAW_MATCHES_FLAGS_DEFAULT, outImage=None)
+            amount = min(len(self.desc_close), len(self.desc_open)) * 3//4
+
             sum_open, matches_open = self.matcher.match(
-                self.desc_open, desc, 250)
+                self.desc_open, desc, amount)
 
             sum_close, matches_close = self.matcher.match(
-                self.desc_close, desc, 250)
+                self.desc_close, desc, amount)
 
             matches = matches_open if sum_open < sum_close else matches_close
             winner = 'open' if sum_open < sum_close else 'close'
@@ -176,8 +206,9 @@ class HandsMatcher(object):
                 w = abs(self.rect[0] - self.rect[2])
                 h = abs(self.rect[1] - self.rect[3])
 
-                (mnx, mny, mxx, mxy, c1, c2) = self.matcher.get_rectangle_around_features(
-                    matches, kp_query, kp, w, h)
+                (mnx, mny, mxx, mxy, c1,
+                 c2) = self.matcher.get_rectangle_around_features(
+                     matches, kp_query, kp, w, h)
                 # print(mnx, mny, mxx, mxy)
 
                 # mnx = np.clip(mnx, 0, frame.shape[0])
@@ -195,15 +226,27 @@ class HandsMatcher(object):
                 if mxy < 0 or mxy > frame.shape[0]:
                     check = True
 
-                # print(check)
+                # print(check   )
+                # print(len(centers))
                 if not check:
 
-                    cv2.circle(img, (c1, c2), 2, (255, 0, 255), 2)
+                    cv2.circle(img, (c1, c2), 4, (255, 0, 255), 4)
+                    # centers.append((c1, c2))
+                    # print(centers)
+                    # c1, c2 = np.median(centers, axis=0)
+                    # mnx = int(c1 - w // 2)
+                    # mxx = int(c1 + w // 2)
+                    # mny = int(c2 - h // 2)
+                    # mxy = int(c2 + h // 2)
 
-                    cv2.rectangle(
-                        img, (mnx, mny), (mxx, mxy), (0, 255, 0), 4)
-                    cv2.putText(img, winner, (int(mnx - 5), int(mny - 5)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, color=(0, 0, 0))
+                    cv2.rectangle(img, (mnx, mny), (mxx, mxy), (0, 255, 0), 4)
+                    cv2.putText(
+                        img,
+                        winner, (int(mnx - 5), int(mny - 5)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        color=(255, 255, 255),
+                        thickness=4)
                 # self.roi_selector.draw_rect(img, self.rect)
 
             cv2.imshow(self.win_name, img)

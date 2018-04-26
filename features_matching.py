@@ -12,7 +12,7 @@ class BruteForceMatcher:
         elif features_type == 'orb':
             self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
-    def match(self, des1, des2, threshold):
+    def match(self, des1, des2, amount):
 
         matches = self.matcher.match(des1, des2)
 
@@ -27,7 +27,7 @@ class BruteForceMatcher:
         matches = [match for match in matches]
         matches = sorted(matches, key=lambda x: x.distance)
 
-        return s, matches[:20]
+        return s, matches[:amount]
 
     def get_rectangle_around_features(self, matches, kp_query, kp_train, w, h):
 
@@ -40,7 +40,7 @@ class BruteForceMatcher:
 
         mask = mask.ravel() != 0
         if mask.sum() < 1:
-            return 0, 0, 0, 0
+            return -1, -1, -1, -1, -1, -1
         pts = np.float32(
             [[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
 
@@ -52,4 +52,4 @@ class BruteForceMatcher:
         mxy = dst[:, :, 1].max()
 
         c1, c2 = np.average(dst_pts, axis=0).flatten()
-        return (mnx, mny, mxx, mxy,c1,c2)
+        return (mnx, mny, mxx, mxy, c1, c2)
