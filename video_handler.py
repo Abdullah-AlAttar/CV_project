@@ -4,11 +4,12 @@ import pickle
 from save_features import pickle_keypoints, unpickle_keypoints
 from features_matching import BruteForceMatcher
 from collections import deque
-
+from keras.models import model_from_json
+import imutils
 # sift = cv2.xfeatures2d.SIFT_create()
 
 
-class ROISelector(object):
+class ROISelector():
     def __init__(self, win_name, init_frame, callback_func):
         self.callback_func = callback_func
         self.selected_rect = None
@@ -55,7 +56,7 @@ class ROISelector(object):
         cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 255, 0), 3)
 
 
-class HandsCapture(object):
+class HandsCapture():
     def __init__(self, capId, feature_detector='sift', win_name='default'):
         self.cap = cv2.VideoCapture(capId)
         self.win_name = win_name
@@ -93,14 +94,14 @@ class HandsCapture(object):
             img = self.frame.copy()
             if self.roi_selector.is_drawing and self.roi_selector.selected_rect:
                 x_start, y_start, x_end, y_end = self.roi_selector.selected_rect
-                cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 100, 255), 3)
+                cv2.rectangle(img, (x_start, y_start),
+                              (x_end, y_end), (0, 100, 255), 3)
 
             if self.rect:
                 x_start, y_start, x_end, y_end = self.rect
                 roi = img[y_start:y_end, x_start:x_end]
-                
+
             if self.roi_selector.moving:
-                
 
                 # roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                 # roi = cv2.GaussianBlur(roi, (5, 5), 0)
@@ -142,7 +143,7 @@ class HandsCapture(object):
         cv2.destroyAllWindows()
 
 
-class HandsMatcher(object):
+class HandsMatcher():
     def __init__(self, capId, feature_detector='sift', win_name='default'):
         self.cap = cv2.VideoCapture(capId)
         self.win_name = win_name
@@ -173,7 +174,7 @@ class HandsMatcher(object):
 
     def start(self):
         paused = False
-        centers = deque(maxlen=5)
+        # centers = deque(maxlen=5)
 
         while True:
             if not paused or self.frame is None:
@@ -264,6 +265,99 @@ class HandsMatcher(object):
         cv2.destroyAllWindows()
 
 
-# if __name__ == '__main__':
-#     vh = VideoHandler(0, 0.8, 'Tracker')
-#     vh.start()
+class HandsDrawer():
+
+    def __init__(self, capId, image_dims, win_name='default', model_path='./'):
+        self.cap = cv2.VideoCapture(capId)
+        self.win_name = win_name
+        self.model = self.__load_model(model_path)
+        self.image_dims = image_dims
+        ret, frame = self.cap.read()
+        self.frame = frame
+
+    def __load_model(self, model_path):
+        json_file = open(model_path + '.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = model_from_json(loaded_model_json)
+        # load weights into new model
+        loaded_model.load_weights(model_path + ".h5")
+
+        loaded_model.compile(optimizer='rmsprop',
+                             loss='categorical_crossentropy', metrics=['accuracy'])
+        return loaded_model
+
+    def get_border(self, img):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)[1]
+        thresh = cv2.erode(thresh, None, iterations=2)
+        thresh = cv2.dilate(thresh, None, iterations=2)
+        cnts = cv2.findContours(
+            thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+        if cnts:
+            c = max(cnts, key=cv2.contourArea)
+            cv2.drawContours(img, [c], -1, (0, 255, 255), 2)
+            extLeft = tuple(c[c[:, :, 0].argmin()][0])
+            extRight = tuple(c[c[:, :, 0].argmax()][0])
+            extTop = tuple(c[c[:, :, 1].argmin()][0])
+            extBot = tuple(c[c[:, :, 1].argmax()][0])
+            return thresh, extLeft, extRight, extTop, extBot
+        return thresh, -1, -1, -1, -1
+
+    def start(self):
+        paused = False
+        preds = deque(maxlen=5)
+        while True:
+            if not paused or self.frame is None:
+                ret, frame = self.cap.read()
+                model_img = cv2.resize(
+                    frame, self.image_dims, interpolation=cv2.INTER_AREA)
+                pred = self.model.predict(
+                    model_img.reshape(-1, self.image_dims[0], self.image_dims[1], 3) / 255)
+                pred_label = np.argmax(pred, axis=1)
+                hand_status = "close" if pred_label[0] == 0 else "open"
+                thresh, left, right, top, bot = self.get_border(frame)
+                if left == -1:
+                    preds.append(-1)
+                else:
+                    preds.append(pred_label[0])
+                    cv2.circle(frame, left, 10, (0, 255, 0), -1)
+                    cv2.circle(frame, right, 10, (0, 255, 0), -1)
+                    cv2.circle(frame, top, 10, (0, 255, 0), -1)
+                    cv2.circle(frame, bot, 10, (0, 255, 0), -1)
+                    c1 = int((left[0] + right[0] + top[0] + bot[0]) / 4)
+                    c2 = int((left[1] + right[1] + top[1] + bot[1]) / 4)
+                    cv2.circle(frame, (c1, c2), 10, (0, 128, 255), -1)
+
+                    max_x = max(left[0], top[0], bot[0], right[0])
+                    max_y = max(left[1], top[1], bot[1], right[1])
+                    min_x = min(left[0], top[0], bot[0], right[0])
+                    min_y = min(left[1], top[1], bot[1], right[1])
+                    cv2.rectangle(frame, (max_x, max_y),
+                                  (min_x, min_y), (255, 0, 0))
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    cv2.putText(frame, hand_status, (int(
+                        frame.shape[0]/2), 50), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
+
+                    if len(preds) > 4:
+                        a = np.unique(preds)
+                        if len(a) == 1:
+                            if a[0] == 1:
+                                 cv2.putText(frame, "drawing", (int(
+                        frame.shape[0]/2), 150), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
+
+                self.frame = frame.copy()
+                # self.roi_selector.draw_rect(img, self.rect)
+            img = self.frame.copy()
+            cv2.imshow('thresh', thresh)
+            cv2.imshow(self.win_name, img)
+
+            ch = cv2.waitKey(1)
+            if ch == ord(' '):
+                paused = not paused
+            if ch == 27:
+                break
+        self.cap.release()
+        cv2.destroyAllWindows()
