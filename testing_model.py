@@ -13,8 +13,8 @@ from sklearn.model_selection import train_test_split
 from keras.models import model_from_json
 import imutils
 
-opened_data = ['./Opened/' + i for i in os.listdir('./Opened')]
-closed_data = ['./Closed/' + i for i in os.listdir('./Closed')]
+opened_data = ['./Opened_mine/' + i for i in os.listdir('./Opened_mine')]
+closed_data = ['./Closed_mine/' + i for i in os.listdir('./Closed_mine')]
 
 image_dims = (80, 80)
 # for path in closed_data:

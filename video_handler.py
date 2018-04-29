@@ -244,7 +244,6 @@ class HandsMatcher():
             ch = cv2.waitKey(1)
             if ch == ord(' '):
                 paused = not paused
-
             if ch == 27:
                 break
         self.cap.release()
@@ -260,6 +259,7 @@ class HandsDrawer():
         self.image_dims = image_dims
         ret, frame = self.cap.read()
         self.frame = frame
+        self.draw_mask = np.zeros(frame.shape)
 
     def __load_model(self, model_path):
         json_file = open(model_path + '.json', 'r')
@@ -276,7 +276,7 @@ class HandsDrawer():
     def get_border(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
-        thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)[1]
+        thresh = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)[1]
         thresh = cv2.erode(thresh, None, iterations=2)
         thresh = cv2.dilate(thresh, None, iterations=2)
         cnts = cv2.findContours(
@@ -331,18 +331,23 @@ class HandsDrawer():
                         a = np.unique(preds)
                         if len(a) == 1:
                             if a[0] == 1:
-                                 cv2.putText(frame, "drawing", (int(
-                        frame.shape[0]/2), 150), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
+                                cv2.putText(frame, "drawing", (int(
+                                    frame.shape[0]/2), 150), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
+                                cv2.circle(self.draw_mask, (c1, c2),
+                                           10, (0, 128, 255), -1)
 
                 self.frame = frame.copy()
                 # self.roi_selector.draw_rect(img, self.rect)
             img = self.frame.copy()
+            cv2.imshow('mask',self.draw_mask)
             cv2.imshow('thresh', thresh)
             cv2.imshow(self.win_name, img)
 
             ch = cv2.waitKey(1)
             if ch == ord(' '):
                 paused = not paused
+            if ch == ord('c'):
+                self.draw_mask = np.zeros(self.draw_mask.shape)
             if ch == 27:
                 break
         self.cap.release()

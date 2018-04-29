@@ -14,8 +14,8 @@ print('running')
 opened_data = ['./Opened/' + i for i in os.listdir('./Opened')]
 closed_data = ['./Closed/' + i for i in os.listdir('./Closed')]
 
-lower = np.array([0, 48, 80], dtype="uint8")
-upper = np.array([20, 255, 255], dtype="uint8")
+# lower = np.array([0, 48, 80], dtype="uint8")
+# upper = np.array([20, 255, 255], dtype="uint8")
 print(opened_data[0].split('/'))
 image_dims = (80, 80)
 img = cv2.imread(opened_data[2])
@@ -43,30 +43,6 @@ print(X.shape)
 X_train, X_test, y_train, y_test = train_test_split(
     X, y_hot, test_size=0.3, random_state=42)
 print(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
-# # img = cv2.resize(img, image_dims, interpolation=cv2.INTER_AREA)
-# cv2.imshow('oroginal', img)
-# mask = skin_detector.process(img)
-# cv2.imshow("input", img)
-# cv2.imshow("mask", mask)
-# cv2.waitKey(0)
-# cap = cv2.VideoCapture(0)
-# while(True):
-#     # Capture frame-by-frame
-#     ret, frame = cap.read()
-
-#     # Our operations on the frame come here
-#     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-#     cv2.imshow('oroginal', frame)
-#     mask = skin_detector.process(frame)
-#     # Display the resulting frame
-#     cv2.imshow('frame', frame)
-#     cv2.imshow("mask", mask)
-#     if cv2.waitKey(1) & 0xFF == ord('q'):
-#         break
-
-# # When everything done, release the capture
-# cap.release()
-# cv2.destroyAllWindows()
 
 
 def createModel():
@@ -94,42 +70,6 @@ def createModel():
 
     return model
 
-
-# model1 = createModel()
-# batch_size = 16
-# epochs = 50
-# model1.compile(optimizer='adam',
-#                loss='categorical_crossentropy', metrics=['accuracy'])
-
-# history = model1.fit(X_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1,
-#                      validation_data=(X_test, y_test))
-
-# model1.evaluate(X_test, y_test)
-
-
-# # ImageDataGenerator(
-# #     rotation_range=10.,
-# #     width_shift_range=0.1,
-# #     height_shift_range=0.1,
-# #     shear_range=0.,
-# #     zoom_range=.1.,
-# #     horizontal_flip=True,
-# #     vertical_flip=True)
-
-# plt.figure(figsize=[8, 6])
-# plt.plot(history.history['loss'], 'r', linewidth=3.0)
-# plt.plot(history.history['val_loss'], 'b', linewidth=3.0)
-# plt.legend(['Training loss', 'Validation Loss'], fontsize=18)
-# plt.xlabel('Epochs ', fontsize=16)
-# plt.ylabel('Loss', fontsize=16)
-# plt.title('Loss Curves', fontsize=16)
-# plt.show()
-
-# pred = model1.predict_classes(X_test.reshape((-1, 64, 64, 3)))
-# class_labels = np.argmax(y_test, axis=1)
-# for i in range(len(pred)):
-#     print(pred[i], class_labels[i])
-# print(np.sum(pred == class_labels).sum()/len(pred))
 
 
 model2 = createModel()
