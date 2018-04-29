@@ -210,13 +210,6 @@ class HandsMatcher():
                 (mnx, mny, mxx, mxy, c1,
                  c2) = self.matcher.get_rectangle_around_features(
                      matches, kp_query, kp, w, h)
-                # print(mnx, mny, mxx, mxy)
-
-                # mnx = np.clip(mnx, 0, frame.shape[0])
-                # mxx = np.clip(mxx, 0, frame.shape[0])
-
-                # mny = np.clip(mny, 0, frame.shape[1])
-                # mxy = np.clip(mxy, 0, frame.shape[1])
                 check = False
                 if mnx < 0 or mnx > frame.shape[0]:
                     check = True
@@ -232,13 +225,6 @@ class HandsMatcher():
                 if not check:
 
                     cv2.circle(img, (c1, c2), 4, (255, 0, 255), 4)
-                    # centers.append((c1, c2))
-                    # print(centers)
-                    # c1, c2 = np.median(centers, axis=0)
-                    # mnx = int(c1 - w // 2)
-                    # mxx = int(c1 + w // 2)
-                    # mny = int(c2 - h // 2)
-                    # mxy = int(c2 + h // 2)
 
                     cv2.rectangle(img, (mnx, mny), (mxx, mxy), (0, 255, 0), 4)
                     cv2.putText(
