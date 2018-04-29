@@ -281,16 +281,24 @@ class HandsDrawer():
         thresh = cv2.dilate(thresh, None, iterations=2)
         cnts = cv2.findContours(
             thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+        cnts = cnts[1]
         if cnts:
             c = max(cnts, key=cv2.contourArea)
+            box = self.draw_smallest_rect(img, c)
             cv2.drawContours(img, [c], -1, (0, 255, 255), 2)
-            extLeft = tuple(c[c[:, :, 0].argmin()][0])
-            extRight = tuple(c[c[:, :, 0].argmax()][0])
-            extTop = tuple(c[c[:, :, 1].argmin()][0])
-            extBot = tuple(c[c[:, :, 1].argmax()][0])
-            return thresh, extLeft, extRight, extTop, extBot
-        return thresh, -1, -1, -1, -1
+            return thresh, box
+        return thresh, None
+
+    def draw_smallest_rect(self, frame, contor):
+        rect = cv2.minAreaRect(contor)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
+        return box
+
+    def draw_ParallelSide_rect(frame, contor):
+        x, y, w, h = cv2.boundingRect(contor)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     def start(self):
         paused = False
@@ -304,25 +312,20 @@ class HandsDrawer():
                     model_img.reshape(-1, self.image_dims[0], self.image_dims[1], 3) / 255)
                 pred_label = np.argmax(pred, axis=1)
                 hand_status = "close" if pred_label[0] == 0 else "open"
-                thresh, left, right, top, bot = self.get_border(frame)
-                if left == -1:
+                thresh, box = self.get_border(frame)
+
+                if box is None:
                     preds.append(-1)
                 else:
                     preds.append(pred_label[0])
-                    cv2.circle(frame, left, 10, (0, 255, 0), -1)
-                    cv2.circle(frame, right, 10, (0, 255, 0), -1)
-                    cv2.circle(frame, top, 10, (0, 255, 0), -1)
-                    cv2.circle(frame, bot, 10, (0, 255, 0), -1)
-                    c1 = int((left[0] + right[0] + top[0] + bot[0]) / 4)
-                    c2 = int((left[1] + right[1] + top[1] + bot[1]) / 4)
+                    c1, c2 = np.average(box, axis=0)
+                    c1, c2 = int(c1), int(c2)
+                    for i in box:
+                        cv2.circle(frame, (int(i[0]), int(
+                            i[1])), 10, (0, 255, 0), -1)
+
                     cv2.circle(frame, (c1, c2), 10, (0, 128, 255), -1)
 
-                    max_x = max(left[0], top[0], bot[0], right[0])
-                    max_y = max(left[1], top[1], bot[1], right[1])
-                    min_x = min(left[0], top[0], bot[0], right[0])
-                    min_y = min(left[1], top[1], bot[1], right[1])
-                    cv2.rectangle(frame, (max_x, max_y),
-                                  (min_x, min_y), (255, 0, 0))
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     cv2.putText(frame, hand_status, (int(
                         frame.shape[0]/2), 50), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
@@ -339,7 +342,7 @@ class HandsDrawer():
                 self.frame = frame.copy()
                 # self.roi_selector.draw_rect(img, self.rect)
             img = self.frame.copy()
-            cv2.imshow('mask',self.draw_mask)
+            cv2.imshow('mask', self.draw_mask)
             cv2.imshow('thresh', thresh)
             cv2.imshow(self.win_name, img)
 
