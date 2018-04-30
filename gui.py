@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from video_handler import HandsMatcher, HandsCapture, HandsDrawer
+from video_handler import HandsMatcher, HandsCapture, HandsDrawer,AccuracyCalc
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -38,7 +38,8 @@ class GUI:
             label="Match Hands", command=self.on_match_hands)
         self.file_menu.add_command(
             label="Draw with hand", command=self.on_draw)
-
+        self.file_menu.add_command(
+            label="Calculate Accuracy", command=self.on_accuracy)
         self.file_menu.add_separator()
         self.file_menu.add_command(label="Exit", command=self.master.quit)
         self.menubar.add_cascade(label="File", menu=self.file_menu)
@@ -56,7 +57,10 @@ class GUI:
         self.hd = HandsDrawer(0, (80, 80), 'Draw With Hands', './model')
         self.hd.start()
 
-
+    def on_accuracy(self):
+        acc = AccuracyCalc()
+        acc.start()
+        pass
 root = tk.Tk()
 gui = GUI(root)
 

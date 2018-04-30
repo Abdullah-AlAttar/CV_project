@@ -53,7 +53,7 @@ class ROISelector():
         if not rect:
             return False
         x_start, y_start, x_end, y_end = rect
-        cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 255, 0), 3)
+        cv2.rectangle(img, (x_start, y_), (x_end, y_end), (0, 255, 0), 3)
 
 
 class HandsCapture():
@@ -279,6 +279,7 @@ class HandsDrawer():
         thresh = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)[1]
         thresh = cv2.erode(thresh, None, iterations=2)
         thresh = cv2.dilate(thresh, None, iterations=2)
+        # thresh = self.skinDetect(img)
         cnts = cv2.findContours(
             thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[1]
@@ -288,6 +289,21 @@ class HandsDrawer():
             cv2.drawContours(img, [c], -1, (0, 255, 255), 2)
             return thresh, box
         return thresh, None
+
+    def skinDetect(self, frame):
+        lower = np.array([6, 60, 0], dtype="uint8")
+        upper = np.array([40, 100, 150], dtype="uint8")
+        converted = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        skinMask = cv2.inRange(converted, lower, upper)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+        # kernel = np.ones((11, 11))
+        skinMask = cv2.dilate(skinMask, kernel, iterations=2)
+        skinMask = cv2.erode(skinMask, kernel, iterations=1)
+
+        skinMask = cv2.GaussianBlur(skinMask, (3, 3), 0)
+        skin = cv2.bitwise_and(frame, frame, mask=skinMask)
+        return skinMask
 
     def draw_smallest_rect(self, frame, contor):
         rect = cv2.minAreaRect(contor)
@@ -306,6 +322,132 @@ class HandsDrawer():
         while True:
             if not paused or self.frame is None:
                 ret, frame = self.cap.read()
+                model_img = cv2.resize(
+                    frame, self.image_dims, interpolation=cv2.INTER_AREA)
+                pred = self.model.predict(
+                    model_img.reshape(-1, self.image_dims[0], self.image_dims[1], 3) / 255)
+                pred_label = np.argmax(pred, axis=1)
+                hand_status = "close" if pred_label[0] == 0 else "open"
+                thresh, box = self.get_border(frame)
+
+                if box is None:
+                    preds.append(-1)
+                else:
+                    preds.append(pred_label[0])
+                    c1, c2 = np.average(box, axis=0)
+                    c1, c2 = int(c1), int(c2)
+                    for i in box:
+                        cv2.circle(frame, (int(i[0]), int(
+                            i[1])), 10, (0, 255, 0), -1)
+
+                    cv2.circle(frame, (c1, c2), 10, (0, 128, 255), -1)
+
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    cv2.putText(frame, hand_status, (int(
+                        frame.shape[0]/2), 50), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
+
+                    if len(preds) > 4:
+                        a = np.unique(preds)
+                        if len(a) == 1:
+                            if a[0] == 1:
+                                cv2.putText(frame, "drawing", (int(
+                                    frame.shape[0]/2), 150), font, 2, (255, 255, 255), 2, cv2.LINE_AA)
+                                cv2.circle(self.draw_mask, (c1, c2),
+                                           10, (0, 128, 255), -1)
+
+                self.frame = frame.copy()
+                # self.roi_selector.draw_rect(img, self.rect)
+            img = self.frame.copy()
+            cv2.imshow('mask', self.draw_mask)
+            cv2.imshow('thresh', thresh)
+            cv2.imshow(self.win_name, img)
+
+            ch = cv2.waitKey(1)
+            if ch == ord(' '):
+                paused = not paused
+            if ch == ord('c'):
+                self.draw_mask = np.zeros(self.draw_mask.shape)
+            if ch == 27:
+                break
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+
+class AccuracyCalc():
+
+    def __init__(self, capId, image_dims, win_name='default', model_path='./'):
+        self.cap = cv2.VideoCapture(capId)
+        self.win_name = win_name
+        self.model = self.__load_model(model_path)
+        self.image_dims = image_dims
+        ret, frame = self.cap.read()
+        self.frame = frame
+        self.draw_mask = np.zeros(frame.shape)
+        self.ground_truth = [(0, 0),( frame.shape[0], frame.shape[1])]
+
+    def __load_model(self, model_path):
+        json_file = open(model_path + '.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = model_from_json(loaded_model_json)
+        # load weights into new model
+        loaded_model.load_weights(model_path + ".h5")
+
+        loaded_model.compile(optimizer='rmsprop',
+                             loss='categorical_crossentropy', metrics=['accuracy'])
+        return loaded_model
+
+    def get_border(self, img):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        thresh = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)[1]
+        thresh = cv2.erode(thresh, None, iterations=2)
+        thresh = cv2.dilate(thresh, None, iterations=2)
+        thresh = self.skinDetect(img)
+        cnts = cv2.findContours(
+            thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = cnts[1]
+        if cnts:
+            c = max(cnts, key=cv2.contourArea)
+            box = self.draw_smallest_rect(img, c)
+            cv2.drawContours(img, [c], -1, (0, 255, 255), 2)
+            return thresh, box
+        return thresh, None
+
+    def skinDetect(self, frame):
+        lower = np.array([6, 60, 0], dtype="uint8")
+        upper = np.array([40, 100, 150], dtype="uint8")
+        converted = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        skinMask = cv2.inRange(converted, lower, upper)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+        # kernel = np.ones((11, 11))
+        skinMask = cv2.dilate(skinMask, kernel, iterations=2)
+        skinMask = cv2.erode(skinMask, kernel, iterations=1)
+
+        skinMask = cv2.GaussianBlur(skinMask, (3, 3), 0)
+        # skin = cv2.bitwise_and(frame, frame, mask=skinMask)
+        return skinMask
+
+    def draw_smallest_rect(self, frame, contor):
+        rect = cv2.minAreaRect(contor)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
+        return box
+
+    def draw_ParallelSide_rect(frame, contor):
+        x, y, w, h = cv2.boundingRect(contor)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    def start(self):
+        paused = False
+        preds = deque(maxlen=5)
+        while True:
+            if not paused or self.frame is None:
+                ret, frame = self.cap.read()
+                cv2.rectangle(frame, (self.g, y_start), (x_end, y_end), (0, 255, 0), 3)
+                
                 model_img = cv2.resize(
                     frame, self.image_dims, interpolation=cv2.INTER_AREA)
                 pred = self.model.predict(
